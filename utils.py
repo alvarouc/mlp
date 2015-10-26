@@ -6,9 +6,13 @@ from sklearn.cross_validation import StratifiedKFold as skfold
 from sklearn.preprocessing import StandardScaler as sc
 
 
+    
 def cross_val_score(model, x_all, y_all, cv=10):
+    n_class = len(np.unique(y_all))
+    
     print('X: (%d,%d)' % x_all.shape)
-    print('y: (%d,)' % y_all.shape[0])
+    print('y: (%d,%d)' % (y_all.shape[0], n_class))
+    
     kf = skfold(y_all, n_folds=cv)
     scores = []
 
@@ -17,9 +21,10 @@ def cross_val_score(model, x_all, y_all, cv=10):
         print('Running fold %d/%d' % (n+1, cv))
         x_train, x_test = x_all[train_index, :], x_all[test_index, :]
         y_train, y_test = y_all[train_index], y_all[test_index]
+        
         model.fit(x_train, y_train)
-        test_score = model.auc(x_test, y_test)
-        train_score = model.auc(x_train, y_train)
+        test_score = model.f1(x_test, y_test)
+        train_score = model.f1(x_train, y_train)
         scores.append(test_score)
         print('Train %.3f, Test %.3f' % (train_score, test_score))
 

@@ -59,9 +59,14 @@ class Model:
                 W_regularizer=l1(l1_norm)))
             self.model.add(Dropout(drop))
         # Output layer
+        if out_dim==1:
+            activation = 'tanh'
+        else:
+            activation = 'softmax'
+            
         self.model.add(Dense(out_dim,
                              init='glorot_uniform',
-                             activation='tanh'))
+                             activation=activation))
 
         temp = [layer['output_dim']
                 for layer in self.model.get_config()['layers']
@@ -75,6 +80,10 @@ class Model:
             self.model.compile(loss='binary_crossentropy',
                                optimizer=opt,
                                class_mode='binary')
+        else:
+            self.model.compile(loss='categorical_crossentropy',
+                               optimizer=opt,
+                               class_mode='categorical')
         self.W0 = self.model.get_weights()
 
     def reset_weigths(self):
@@ -88,13 +97,19 @@ class Model:
         self.model.load_weights(path)
 
     def fit(self, x_all, y_all, verbose=0, patience=200):
-
+        n_class = len(np.unique(y_all))
+        if n_class > 2:
+            v_all = np.array([np.roll([1] + [0]*(n_class-1), pos)
+                              for pos in y_all.astype('int')])
         sss = StratifiedShuffleSplit(y_all, 1,
                                      test_size=0.1,
                                      random_state=0)
         for train_index, val_index in sss:
             x_train, x_val = x_all[train_index, :], x_all[val_index, :]
-            y_train, y_val = y_all[train_index], y_all[val_index]
+            if n_class == 2:
+                y_train, y_val = y_all[train_index], y_all[val_index]
+            else:
+                y_train, y_val = v_all[train_index,:], v_all[val_index,:]
 
         stop = EarlyStopping(monitor='val_loss',
                              patience=patience,
@@ -178,11 +193,13 @@ class Model:
         return(prediction)
 
     def auc(self, x_all, y_all):
-        prediction = self.model.predict(x_all,
-                                        verbose=self.verbose)
+        prediction = self.predict(x_all)
         return roc_auc_score(y_all, prediction)
 
     def f1(self, x_all, y_all):
-        prediction = self.model.predict(x_all,
-                                        verbose=self.verbose)
-        return f1_score(y_all, prediction)
+        n_class = len(np.unique(y_all))
+        prediction = self.predict(x_all)
+        if n_class > 2:
+            return f1_score(y_all, prediction, average='weighted')
+        else:
+            return f1_score(y_all, prediction)
