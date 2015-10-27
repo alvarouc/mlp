@@ -152,14 +152,14 @@ class MLPg(BaseMLP):
         batches_y = batches.batch_label
         best_loss = np.infty
         current_patience = 0
-        for batch in batches:
+        for n, batch in enumerate(batches):
             if scaler:
                 batch = scaler.transform(batch)
 
             self.model.train_on_batch(batch, batches_y)
             loss_val = self.model.evaluate(X, y, verbose=0)
 
-            if loss_val <= best_loss:
+            if loss_val < best_loss:
                 current_patience = 0
                 best_loss = loss_val
                 if self.verbose:
@@ -168,6 +168,11 @@ class MLPg(BaseMLP):
                 current_patience += 1
             if current_patience > self.patience:
                 break
+
+            if self.verbose:
+                print('Batch {0}: Train {1:2.2f}%, Val {2:2.2f}%'
+                      .format(n, self.f1(batch, batches_y)*100,
+                              self.f1(X, y)*100))
 
 
 def build_model(in_dim, out_dim=1,
