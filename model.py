@@ -50,7 +50,7 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
             out_dim = 1
         else:
             out_dim = n_class
-        self.model = build_model(in_dim=X.shape[1], out_dim=out_dim,
+        self.model = build_model(X.shape[1], out_dim=out_dim,
                                  n_hidden=self.n_hidden, l1_norm=self.l1_norm,
                                  n_deep=self.n_deep, drop=self.drop)
         # save initial weights
