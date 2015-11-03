@@ -7,7 +7,6 @@ from sklearn.cross_validation import StratifiedShuffleSplit
 from sklearn.metrics import roc_auc_score, f1_score
 from sklearn.base import BaseEstimator, ClassifierMixin
 import numpy as np
-from data_generator import DataGeneratorByGroup
 
 
 class BaseMLP(BaseEstimator, ClassifierMixin):
@@ -186,7 +185,8 @@ class MLPg(BaseMLP):
 
 def build_model(in_dim, out_dim=1,
                 n_hidden=100, l1_norm=0.0,
-                n_deep=5, drop=0.1, learning_rate=0.1):
+                n_deep=5, drop=0.1,
+                learning_rate=0.1):
     model = Sequential()
     # Input layer
     model.add(Dense(
