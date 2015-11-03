@@ -36,13 +36,15 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
     '''
     def __init__(self, n_hidden=1000, n_deep=4,
                  l1_norm=0.01, drop=0.1,
-                 patience=200, verbose=2):
+                 patience=200,
+                 learning_rate=0.1, verbose=2):
         self.n_hidden = n_hidden
         self.n_deep = n_deep
         self.l1_norm = l1_norm
         self.drop = drop
         self.patience = patience
         self.verbose = verbose
+        self.learning_rate = learning_rate
 
     def fit(self, X, y, **kwargs):
         n_class = len(np.unique(y))
@@ -52,7 +54,8 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
             out_dim = n_class
         self.model = build_model(X.shape[1], out_dim=out_dim,
                                  n_hidden=self.n_hidden, l1_norm=self.l1_norm,
-                                 n_deep=self.n_deep, drop=self.drop)
+                                 n_deep=self.n_deep, drop=self.drop,
+                                 learning_rate=self.learning_rate)
         # save initial weights
         self.W0 = self.model.get_weights()
 
@@ -128,7 +131,7 @@ class MLPg(BaseMLP):
 
     def __init__(self, method='ica',
                  n_components=10, n_hidden=1000, n_deep=4,
-                 l1_norm=0.01, drop=0.1,
+                 l1_norm=0.01, drop=0.1, fine_tune=0,
                  patience=200, verbose=2):
         self.n_hidden = n_hidden
         self.n_deep = n_deep
@@ -138,6 +141,7 @@ class MLPg(BaseMLP):
         self.verbose = verbose
         self.method = method
         self.n_components = n_components
+        self.fine_tune = fine_tune
 
     def fit(self, X, y, scaler=None):
         # Fit the model from a source of batches
@@ -170,14 +174,19 @@ class MLPg(BaseMLP):
                 break
 
             if self.verbose:
-                print('Batch {0}: Train {1:2.2f}%, Val {2:2.2f}%'
+                print('Batch {0:04d}: Train {1:02.2f}%, Val {2:02.2f}%'
                       .format(n, self.f1(batch, batches_y)*100,
                               self.f1(X, y)*100))
+
+        if self.fine_tune:
+            self.model.fit(X, y, nb_epoch=self.fine_tune, verbose=self.verbose)
+
+        return self
 
 
 def build_model(in_dim, out_dim=1,
                 n_hidden=100, l1_norm=0.0,
-                n_deep=5, drop=0.1):
+                n_deep=5, drop=0.1, learning_rate=0.1):
     model = Sequential()
     # Input layer
     model.add(Dense(
@@ -207,7 +216,7 @@ def build_model(in_dim, out_dim=1,
                     activation=activation))
 
     # Optimization algorithms
-    opt = Adadelta()
+    opt = Adadelta(lr=learning_rate)
     if out_dim == 1:
         model.compile(loss='binary_crossentropy',
                       optimizer=opt,
