@@ -44,6 +44,7 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
         self.patience = patience
         self.verbose = verbose
         self.learning_rate = learning_rate
+        
 
     def fit(self, X, y, **kwargs):
         n_class = len(np.unique(y))
@@ -73,6 +74,18 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
 
     def load(self, path):
         self.model.load_weights(path)
+
+    def build_model(self, X, y):
+        n_class = len(np.unique(y))
+        if n_class == 2:
+            out_dim = 1
+        else:
+            out_dim = n_class
+        self.model = build_model(X.shape[1], out_dim=out_dim,
+                                 n_hidden=self.n_hidden, l1_norm=self.l1_norm,
+                                 n_deep=self.n_deep, drop=self.drop,
+                                 learning_rate=self.learning_rate)
+        return self
 
     def predict_proba(self, X):
         return self.model.predict(X, verbose=self.verbose)
