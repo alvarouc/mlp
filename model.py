@@ -44,7 +44,6 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
         self.patience = patience
         self.verbose = verbose
         self.learning_rate = learning_rate
-        
 
     def fit(self, X, y, **kwargs):
         n_class = len(np.unique(y))
@@ -53,21 +52,16 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
         else:
             out_dim = n_class
         self.model = build_model(X.shape[1], out_dim=out_dim,
-                                 n_hidden=self.n_hidden, l1_norm=self.l1_norm,
+                                 n_hidden=self.n_hidden,
+                                 l1_norm=self.l1_norm,
                                  n_deep=self.n_deep, drop=self.drop,
                                  learning_rate=self.learning_rate)
-        # save initial weights
-        self.W0 = self.model.get_weights()
-
         if self.verbose:
             temp = [layer['output_dim']
                     for layer in self.model.get_config()['layers']
                     if layer['name'] == 'Dense']
             print('Model:{}'.format(temp))
         return self
-
-    def reset_weigths(self):
-        self.model.set_weights(self.W0)
 
     def save(self, path):
         self.model.save_weights(path)
@@ -88,10 +82,17 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
         return self
 
     def predict_proba(self, X):
-        return self.model.predict(X, verbose=self.verbose)
+        proba = self.model.predict(X, verbose=self.verbose)
+        if len(proba.shape) == 1:
+            proba = np.array(proba).reshape((X.shape[0], -1))
+            temp = (1-proba.sum(axis=1)).reshape(X.shape[0], -1)
+            proba = np.hstack((temp, proba))
+        return proba
 
     def predict(self, X):
         prediction = self.model.predict_classes(X, verbose=self.verbose)
+        prediction = np.array(prediction).reshape((X.shape[0], -1))
+        prediction = np.squeeze(prediction).astype('int')
         return(prediction)
 
     def auc(self, X, y):
@@ -130,7 +131,7 @@ class MLP(BaseMLP):
                              verbose=self.verbose)
         self.model.fit(x_train, y_train,
                        nb_epoch=5000,
-                       batch_size=16,
+                       batch_size=64,
                        verbose=self.verbose,
                        callbacks=[stop],
                        show_accuracy=True,
