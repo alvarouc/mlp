@@ -69,13 +69,9 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
     def load(self, path):
         self.model.load_weights(path)
 
-    def build_model(self, X, y):
-        n_class = len(np.unique(y))
-        if n_class == 2:
-            out_dim = 1
-        else:
-            out_dim = n_class
-        self.model = build_model(X.shape[1], out_dim=out_dim,
+    def build_model(self, in_dim, out_dim):
+
+        self.model = build_model(in_dim, out_dim=out_dim,
                                  n_hidden=self.n_hidden, l1_norm=self.l1_norm,
                                  n_deep=self.n_deep, drop=self.drop,
                                  learning_rate=self.learning_rate)
@@ -131,7 +127,7 @@ class MLP(BaseMLP):
                              verbose=self.verbose)
         self.model.fit(x_train, y_train,
                        nb_epoch=5000,
-                       batch_size=64,
+                       #batch_size=64,
                        verbose=self.verbose,
                        callbacks=[stop],
                        show_accuracy=True,
