@@ -6,6 +6,7 @@ from keras.callbacks import EarlyStopping
 from sklearn.cross_validation import StratifiedShuffleSplit
 from sklearn.metrics import roc_auc_score, f1_score
 from sklearn.base import BaseEstimator, ClassifierMixin
+from theano import function
 import numpy as np
 
 
@@ -76,6 +77,18 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
                                  n_deep=self.n_deep, drop=self.drop,
                                  learning_rate=self.learning_rate)
         return self
+
+    def feed_forward(self, X):
+        # Feeds the model with X and returns the output of
+        # each layer
+        layer_output = []
+        for layer in self.model.layers:
+            if layer.get_config()['name'] == 'Dense':
+                get_layer = function([self.model.layers[0].input],
+                                     layer.get_output(train=False),
+                                     allow_input_downcast=True)
+                layer_output.append(get_layer(X))
+        return layer_output
 
     def predict_proba(self, X):
         proba = self.model.predict(X, verbose=self.verbose)
