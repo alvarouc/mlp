@@ -6,6 +6,7 @@ from keras.callbacks import EarlyStopping
 from sklearn.cross_validation import StratifiedShuffleSplit
 from sklearn.metrics import roc_auc_score, f1_score
 from sklearn.base import BaseEstimator, ClassifierMixin
+from theano import function
 import numpy as np
 
 
@@ -35,13 +36,15 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
     '''
     def __init__(self, n_hidden=1000, n_deep=4,
                  l1_norm=0.01, drop=0.1,
-                 patience=200, verbose=2):
+                 patience=200,
+                 learning_rate=0.1, verbose=2):
         self.n_hidden = n_hidden
         self.n_deep = n_deep
         self.l1_norm = l1_norm
         self.drop = drop
         self.patience = patience
         self.verbose = verbose
+        self.learning_rate = learning_rate
 
     def fit(self, X, y, **kwargs):
         n_class = len(np.unique(y))
@@ -50,11 +53,10 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
         else:
             out_dim = n_class
         self.model = build_model(X.shape[1], out_dim=out_dim,
-                                 n_hidden=self.n_hidden, l1_norm=self.l1_norm,
-                                 n_deep=self.n_deep, drop=self.drop)
-        # save initial weights
-        self.W0 = self.model.get_weights()
-
+                                 n_hidden=self.n_hidden,
+                                 l1_norm=self.l1_norm,
+                                 n_deep=self.n_deep, drop=self.drop,
+                                 learning_rate=self.learning_rate)
         if self.verbose:
             temp = [layer['output_dim']
                     for layer in self.model.get_config()['layers']
@@ -62,20 +64,44 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
             print('Model:{}'.format(temp))
         return self
 
-    def reset_weigths(self):
-        self.model.set_weights(self.W0)
-
     def save(self, path):
         self.model.save_weights(path)
 
     def load(self, path):
         self.model.load_weights(path)
 
+    def build_model(self, in_dim, out_dim):
+
+        self.model = build_model(in_dim, out_dim=out_dim,
+                                 n_hidden=self.n_hidden, l1_norm=self.l1_norm,
+                                 n_deep=self.n_deep, drop=self.drop,
+                                 learning_rate=self.learning_rate)
+        return self
+
+    def feed_forward(self, X):
+        # Feeds the model with X and returns the output of
+        # each layer
+        layer_output = []
+        for layer in self.model.layers:
+            if layer.get_config()['name'] == 'Dense':
+                get_layer = function([self.model.layers[0].input],
+                                     layer.get_output(train=False),
+                                     allow_input_downcast=True)
+                layer_output.append(get_layer(X))
+        return layer_output
+
     def predict_proba(self, X):
-        return self.model.predict(X, verbose=self.verbose)
+        proba = self.model.predict(X, verbose=self.verbose)
+        if len(proba.shape) == 1:
+            proba = np.array(proba).reshape((X.shape[0], -1))
+            temp = (1-proba.sum(axis=1)).reshape(X.shape[0], -1)
+            proba = np.hstack((temp, proba))
+        return proba
 
     def predict(self, X):
         prediction = self.model.predict_classes(X, verbose=self.verbose)
+        prediction = np.array(prediction).reshape((X.shape[0], -1))
+        prediction = np.squeeze(prediction).astype('int')
         return(prediction)
 
     def auc(self, X, y):
@@ -114,7 +140,7 @@ class MLP(BaseMLP):
                              verbose=self.verbose)
         self.model.fit(x_train, y_train,
                        nb_epoch=5000,
-                       batch_size=16,
+                       #batch_size=64,
                        verbose=self.verbose,
                        callbacks=[stop],
                        show_accuracy=True,
@@ -123,9 +149,67 @@ class MLP(BaseMLP):
         return self
 
 
+class MLPg(BaseMLP):
+
+    def __init__(self, method='ica',
+                 n_components=10, n_hidden=1000, n_deep=4,
+                 l1_norm=0.01, drop=0.1, fine_tune=0,
+                 patience=200, verbose=2):
+        self.n_hidden = n_hidden
+        self.n_deep = n_deep
+        self.l1_norm = l1_norm
+        self.drop = drop
+        self.patience = patience
+        self.verbose = verbose
+        self.method = method
+        self.n_components = n_components
+        self.fine_tune = fine_tune
+
+    def fit(self, X, y, scaler=None):
+        # Fit the model from a source of batches
+        # batches: python iterator that generates the batches
+        # batches_label: labels for all batches
+        super().fit(X, y)
+        self.classes_, y = np.unique(y, return_inverse=True)
+
+        batches = DataGeneratorByGroup(
+            X, y, n_components=self.n_components, n_batches=1000,
+            method='rejective', decomposition_method=self.method)
+        batches_y = batches.batch_label
+        best_loss = np.infty
+        current_patience = 0
+        for n, batch in enumerate(batches):
+            if scaler:
+                batch = scaler.transform(batch)
+
+            self.model.train_on_batch(batch, batches_y)
+            loss_val = self.model.evaluate(X, y, verbose=0)
+
+            if loss_val < best_loss:
+                current_patience = 0
+                best_loss = loss_val
+                if self.verbose:
+                    print('Best val_loss : %.3f' % best_loss)
+            else:
+                current_patience += 1
+            if current_patience > self.patience:
+                break
+
+            if self.verbose:
+                print('Batch {0:04d}: Train {1:02.2f}%, Val {2:02.2f}%'
+                      .format(n, self.f1(batch, batches_y)*100,
+                              self.f1(X, y)*100))
+
+        if self.fine_tune:
+            self.model.fit(X, y, nb_epoch=self.fine_tune, verbose=self.verbose)
+
+        return self
+
+
 def build_model(in_dim, out_dim=1,
                 n_hidden=100, l1_norm=0.0,
-                n_deep=5, drop=0.1):
+                n_deep=5, drop=0.1,
+                learning_rate=0.1):
     model = Sequential()
     # Input layer
     model.add(Dense(
@@ -155,7 +239,7 @@ def build_model(in_dim, out_dim=1,
                     activation=activation))
 
     # Optimization algorithms
-    opt = Adadelta()
+    opt = Adadelta(lr=learning_rate)
     if out_dim == 1:
         model.compile(loss='binary_crossentropy',
                       optimizer=opt,
