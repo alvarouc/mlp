@@ -52,7 +52,7 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
             out_dim = 1
         else:
             out_dim = n_class
-        self.model = self.build_model(X.shape[1], out_dim)
+        self.build_model(X.shape[1], out_dim)
         if self.verbose:
             temp = [layer['output_dim']
                     for layer in self.model.get_config()['layers']
