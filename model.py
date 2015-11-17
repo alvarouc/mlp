@@ -155,6 +155,63 @@ class MLP(BaseMLP):
 
         return self
 
+class MLPg(BaseMLP):
+
+    def __init__(self, method='ica',
+                 n_components=10, n_hidden=1000, n_deep=4,
+                 l1_norm=0.01, drop=0.1, fine_tune=0,
+                 patience=200, verbose=2):
+        self.n_hidden = n_hidden
+        self.n_deep = n_deep
+        self.l1_norm = l1_norm
+        self.drop = drop
+        self.patience = patience
+        self.verbose = verbose
+        self.method = method
+        self.n_components = n_components
+        self.fine_tune = fine_tune
+
+    def fit(self, X, y, scaler=None):
+        # Fit the model from a source of batches
+        # batches: python iterator that generates the batches
+        # batches_label: labels for all batches
+        super().fit(X, y)
+        self.classes_, y = np.unique(y, return_inverse=True)
+
+        batches = DataGeneratorByGroup(
+            X, y, n_components=self.n_components, n_batches=1000,
+            method='rejective', decomposition_method=self.method)
+        batches_y = batches.batch_label
+        best_loss = np.infty
+        current_patience = 0
+        for n, batch in enumerate(batches):
+            if scaler:
+                batch = scaler.transform(batch)
+
+            self.model.train_on_batch(batch, batches_y)
+            loss_val = self.model.evaluate(X, y, verbose=0)
+
+            if loss_val < best_loss:
+                current_patience = 0
+                best_loss = loss_val
+                if self.verbose:
+                    print('Best val_loss : %.3f' % best_loss)
+            else:
+                current_patience += 1
+            if current_patience > self.patience:
+                break
+
+            if self.verbose:
+                print('Batch {0:04d}: Train {1:02.2f}%, Val {2:02.2f}%'
+                      .format(n, self.f1(batch, batches_y)*100,
+                              self.f1(X, y)*100))
+
+        if self.fine_tune:
+            self.model.fit(X, y, nb_epoch=self.fine_tune, verbose=self.verbose)
+
+        return self
+
+    
 
 def build_model(in_dim, out_dim=1,
                 n_hidden=100, l1_norm=0.0,
