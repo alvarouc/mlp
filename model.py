@@ -36,8 +36,10 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
     '''
     def __init__(self, n_hidden=1000, n_deep=4,
                  l1_norm=0.01, drop=0.1,
-                 early_stop=True, patience=200,
+                 early_stop=True, max_epoch=5000,
+                 patience=200,
                  learning_rate=0.1, verbose=2):
+        self.max_epoch = max_epoch
         self.early_stop = early_stop
         self.n_hidden = n_hidden
         self.n_deep = n_deep
@@ -140,14 +142,14 @@ class MLP(BaseMLP):
                                  patience=self.patience,
                                  verbose=self.verbose)
             self.model.fit(x_train, y_train,
-                           nb_epoch=5000,
+                           nb_epoch=self.max_epoch,
                            # batch_size=64,
                            verbose=self.verbose,
                            callbacks=[stop],
                            show_accuracy=True,
                            validation_data=(x_val, y_val))
         else:
-            self.model.fit(X, y, nb_epoch=5000,
+            self.model.fit(X, y, nb_epoch=self.max_epoch,
                            verbose=self.verbose,
                            show_accuracy=True)
 
