@@ -36,8 +36,9 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
     '''
     def __init__(self, n_hidden=1000, n_deep=4,
                  l1_norm=0.01, drop=0.1,
-                 patience=200,
+                 early_stop=True, patience=200,
                  learning_rate=0.1, verbose=2):
+        self.early_stop = early_stop
         self.n_hidden = n_hidden
         self.n_deep = n_deep
         self.l1_norm = l1_norm
@@ -53,11 +54,15 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
         else:
             out_dim = n_class
         self.build_model(X.shape[1], out_dim)
-        if self.verbose:
-            temp = [layer['output_dim']
-                    for layer in self.model.get_config()['layers']
-                    if layer['name'] == 'Dense']
-            print('Model:{}'.format(temp))
+        #if self.verbose:
+        temp = [layer['output_dim']
+                for layer in self.model.get_config()['layers']
+                if layer['name'] == 'Dense']
+        print('Model:{}'.format(temp))
+        print('l1: {}, drop: {}, lr: {}, patience: {}'.format(
+            self.l1_norm, self.drop, self.learning_rate,
+            self.patience))
+
         return self
 
     def save(self, path):
@@ -88,7 +93,8 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
 
     def predict_proba(self, X):
         proba = self.model.predict(X, verbose=self.verbose)
-        if len(proba.shape) == 1:
+
+        if proba.shape[1] == 1:
             proba = np.array(proba).reshape((X.shape[0], -1))
             temp = (1-proba.sum(axis=1)).reshape(X.shape[0], -1)
             proba = np.hstack((temp, proba))
@@ -120,27 +126,30 @@ class MLP(BaseMLP):
         self.classes_, y = np.unique(y, return_inverse=True)
         n_class = len(np.unique(y))
         if n_class > 2:
-            v_all = np.array([np.roll([1] + [0]*(n_class-1), pos)
-                              for pos in y.astype('int')])
-        sss = StratifiedShuffleSplit(y, 1, test_size=0.1,
-                                     random_state=0)
-        train_index, val_index = next(iter(sss))
-        x_train, x_val = X[train_index, :], X[val_index, :]
-        if n_class == 2:
-            y_train, y_val = y[train_index], y[val_index]
-        else:
-            y_train, y_val = v_all[train_index, :], v_all[val_index, :]
+            y = np.array([np.roll([1] + [0]*(n_class-1), pos)
+                          for pos in y.astype('int')])
 
-        stop = EarlyStopping(monitor='val_loss',
-                             patience=self.patience,
-                             verbose=self.verbose)
-        self.model.fit(x_train, y_train,
-                       nb_epoch=5000,
-                       # batch_size=64,
-                       verbose=self.verbose,
-                       callbacks=[stop],
-                       show_accuracy=True,
-                       validation_data=(x_val, y_val))
+        if self.early_stop:
+            sss = StratifiedShuffleSplit(y, 1, test_size=0.1,
+                                         random_state=0)
+            train_index, val_index = next(iter(sss))
+            x_train, x_val = X[train_index, :], X[val_index, :]
+            y_train, y_val = y[train_index], y[val_index]
+
+            stop = EarlyStopping(monitor='val_loss',
+                                 patience=self.patience,
+                                 verbose=self.verbose)
+            self.model.fit(x_train, y_train,
+                           nb_epoch=5000,
+                           # batch_size=64,
+                           verbose=self.verbose,
+                           callbacks=[stop],
+                           show_accuracy=True,
+                           validation_data=(x_val, y_val))
+        else:
+            self.model.fit(X, y, nb_epoch=5000,
+                           verbose=self.verbose,
+                           show_accuracy=True)
 
         return self
 
