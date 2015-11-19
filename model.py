@@ -5,9 +5,16 @@ from keras.regularizers import l1
 from keras.callbacks import EarlyStopping
 from sklearn.cross_validation import StratifiedShuffleSplit
 from sklearn.metrics import roc_auc_score, f1_score
+from sklearn.preprocessing import LabelEncoder
 from sklearn.base import BaseEstimator, ClassifierMixin
+from data_generator import DataGeneratorByGroup as dbg
 from theano import function
 import numpy as np
+import logging
+
+logging.basicConfig(format="[%(module)s:%(levelname)s]:%(message)s")
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 class BaseMLP(BaseEstimator, ClassifierMixin):
@@ -38,7 +45,7 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
                  l1_norm=0.01, drop=0.1,
                  early_stop=True, max_epoch=5000,
                  patience=200,
-                 learning_rate=0.1, verbose=2):
+                 learning_rate=1, verbose=2):
         self.max_epoch = max_epoch
         self.early_stop = early_stop
         self.n_hidden = n_hidden
@@ -50,11 +57,17 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
         self.learning_rate = learning_rate
 
     def fit(self, X, y, **kwargs):
-        n_class = len(np.unique(y))
-        if n_class == 2:
+
+        # Encoding labels
+        self.le = LabelEncoder()
+        self.y_ = self.le.fit_transform(y)
+        self.n_class = len(self.le.classes_)
+
+        if self.n_class == 2:
             out_dim = 1
         else:
-            out_dim = n_class
+            out_dim = self.n_class
+
         self.build_model(X.shape[1], out_dim)
         #if self.verbose:
         temp = [layer['output_dim']
@@ -106,16 +119,15 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
         prediction = self.model.predict_classes(X, verbose=self.verbose)
         prediction = np.array(prediction).reshape((X.shape[0], -1))
         prediction = np.squeeze(prediction).astype('int')
-        return(prediction)
+        return self.le.inverse_transform(prediction)
 
     def auc(self, X, y):
         prediction = self.predict(X)
         return roc_auc_score(y, prediction)
 
     def f1(self, X, y):
-        n_class = len(np.unique(y))
         prediction = self.predict(X)
-        if n_class > 2:
+        if self.n_class > 2:
             return f1_score(y, prediction, average='weighted')
         else:
             return f1_score(y, prediction)
@@ -125,17 +137,16 @@ class MLP(BaseMLP):
 
     def fit(self, X, y):
         super().fit(X, y)
-        self.classes_, y = np.unique(y, return_inverse=True)
-        n_class = len(np.unique(y))
-        if n_class > 2:
-            y = np.array([np.roll([1] + [0]*(n_class-1), pos)
-                          for pos in y.astype('int')])
+        if self.n_class > 2:
+            y = unroll(self.y_)
+        else:
+            y = self.y_
 
         if self.early_stop:
-            sss = StratifiedShuffleSplit(y, 1, test_size=0.1,
+            sss = StratifiedShuffleSplit(self.y_, 1, test_size=0.1,
                                          random_state=0)
             train_index, val_index = next(iter(sss))
-            x_train, x_val = X[train_index, :], X[val_index, :]
+            x_train, x_val = X[train_index], X[val_index]
             y_train, y_val = y[train_index], y[val_index]
 
             stop = EarlyStopping(monitor='val_loss',
@@ -155,19 +166,17 @@ class MLP(BaseMLP):
 
         return self
 
-class MLPg(BaseMLP):
 
-    def __init__(self, method='ica',
-                 n_components=10, n_hidden=1000, n_deep=4,
-                 l1_norm=0.01, drop=0.1, fine_tune=0,
-                 patience=200, verbose=2):
-        self.n_hidden = n_hidden
-        self.n_deep = n_deep
-        self.l1_norm = l1_norm
-        self.drop = drop
-        self.patience = patience
-        self.verbose = verbose
+class MLPg(MLP):
+
+    def __init__(self, method='normal', decomposition_method='ica',
+                 n_components=10, fine_tune=0,  n_hidden=1000, n_deep=4,
+                 l1_norm=0.01, drop=0.1, early_stop=True, max_epoch=5000,
+                 patience=200, learning_rate=1, verbose=2):
+        super().__init__(n_hidden, n_deep, l1_norm, drop, early_stop,
+                         max_epoch, patience, learning_rate, verbose)
         self.method = method
+        self.decomposition_method = decomposition_method
         self.n_components = n_components
         self.fine_tune = fine_tune
 
@@ -175,20 +184,35 @@ class MLPg(BaseMLP):
         # Fit the model from a source of batches
         # batches: python iterator that generates the batches
         # batches_label: labels for all batches
-        super().fit(X, y)
-        self.classes_, y = np.unique(y, return_inverse=True)
+        super(MLP, self).fit(X, y)
 
-        batches = DataGeneratorByGroup(
-            X, y, n_components=self.n_components, n_batches=1000,
-            method='rejective', decomposition_method=self.method)
-        batches_y = batches.batch_label
+        if self.n_class > 2:
+            y = unroll(self.y_)
+        else:
+            y = self.y_
+
+        # Start generator
+        logger.info('Starting generator ...')
+        unscaled = scaler.inverse_transform(X)
+        batches = dbg(unscaled,
+                      self.y_, n_components=self.n_components,
+                      n_batches=1000, method=self.method,
+                      n_samples=500,
+                      decomposition_method=self.decomposition_method)
+        logger.info('Generator ready')
+
         best_loss = np.infty
         current_patience = 0
-        for n, batch in enumerate(batches):
+        for n, (batch, label) in enumerate(batches):
             if scaler:
                 batch = scaler.transform(batch)
+                
+            old_label = label
+            if self.n_class > 2:
+                label = unroll(label)
 
-            self.model.train_on_batch(batch, batches_y)
+            self.model.fit(batch, label, nb_epoch=10, verbose=0)
+
             loss_val = self.model.evaluate(X, y, verbose=0)
 
             if loss_val < best_loss:
@@ -203,15 +227,15 @@ class MLPg(BaseMLP):
 
             if self.verbose:
                 print('Batch {0:04d}: Train {1:02.2f}%, Val {2:02.2f}%'
-                      .format(n, self.f1(batch, batches_y)*100,
+                      .format(n, self.f1(batch, old_label)*100,
                               self.f1(X, y)*100))
 
         if self.fine_tune:
-            self.model.fit(X, y, nb_epoch=self.fine_tune, verbose=self.verbose)
+            self.model.fit(X, y, nb_epoch=self.fine_tune,
+                           verbose=self.verbose)
 
         return self
 
-    
 
 def build_model(in_dim, out_dim=1,
                 n_hidden=100, l1_norm=0.0,
@@ -257,3 +281,8 @@ def build_model(in_dim, out_dim=1,
                       class_mode='categorical')
 
     return model
+
+
+def unroll(y):
+    n_class = len(np.unique(y))
+    return np.array([np.roll([1] + [0]*(n_class-1), pos) for pos in y])
