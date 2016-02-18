@@ -56,14 +56,14 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
         else:
             out_dim = n_class
         self.build_model(X.shape[1], out_dim)
-        #if self.verbose:
-        temp = [layer['output_dim']
-                for layer in self.model.get_config()['layers']
-                if layer['name'] == 'Dense']
-        print('Model:{}'.format(temp))
-        print('l1: {}, drop: {}, lr: {}, patience: {}'.format(
-            self.l1_norm, self.drop, self.learning_rate,
-            self.patience))
+        if self.verbose:
+            temp = [layer['output_dim']
+                    for layer in self.model.get_config()['layers']
+                    if layer['name'] == 'Dense']
+            print('Model:{}'.format(temp))
+            print('l1: {}, drop: {}, lr: {}, patience: {}'.format(
+                self.l1_norm, self.drop, self.learning_rate,
+                self.patience))
 
         return self
 
