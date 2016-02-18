@@ -79,7 +79,11 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
                                  n_hidden=self.n_hidden, l1_norm=self.l1_norm,
                                  n_deep=self.n_deep, drop=self.drop,
                                  learning_rate=self.learning_rate)
+        self.w0 = self.model.get_weights()
         return self
+
+    def reset_model(self):
+        self.model.set_weights(self.W0)
 
     def feed_forward(self, X):
         # Feeds the model with X and returns the output of
