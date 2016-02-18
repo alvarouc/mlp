@@ -68,7 +68,10 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
         else:
             out_dim = self.n_class
 
-        self.build_model(X.shape[1], out_dim)
+        if hasattr(self, 'model'):
+            self.reset_model()
+        else:
+            self.build_model(X.shape[1], out_dim)
         if self.verbose:
             temp = [layer['output_dim'] for layer in
                     self.model.get_config()['layers']
@@ -92,7 +95,11 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
                                  n_hidden=self.n_hidden, l1_norm=self.l1_norm,
                                  n_deep=self.n_deep, drop=self.drop,
                                  learning_rate=self.learning_rate)
+        self.w0 = self.model.get_weights()
         return self
+
+    def reset_model(self):
+        self.model.set_weights(self.w0)
 
     def feed_forward(self, X):
         # Feeds the model with X and returns the output of
