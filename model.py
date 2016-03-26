@@ -41,10 +41,10 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
          labels provided
     '''
     def __init__(self, n_hidden=1000, n_deep=4,
-                 l1_norm=0.01, l2_norm=0, drop=0.1,
+                 l1_norm=0, l2_norm=0, drop=0,
                  early_stop=True, max_epoch=5000,
                  patience=200,
-                 learning_rate=1, verbose=2):
+                 learning_rate=1, verbose=0):
         self.max_epoch = max_epoch
         self.early_stop = early_stop
         self.n_hidden = n_hidden
@@ -160,14 +160,14 @@ class MLP(BaseMLP):
             stop = EarlyStopping(monitor='val_loss',
                                  patience=self.patience,
                                  verbose=self.verbose)
-            self.hist = self.model.fit(
+            self.history = self.model.fit(
                 x_train, y_train, nb_epoch=self.max_epoch,
                 verbose=self.verbose, callbacks=[stop], show_accuracy=False,
-                validation_data=(x_val, y_val))
+                validation_data=(x_val, y_val)).history
         else:
-            self.hist = self.model.fit(
+            self.history = self.model.fit(
                 X, y, nb_epoch=self.max_epoch, verbose=self.verbose,
-                show_accuracy=False)
+                show_accuracy=False).history
 
         return self
 
