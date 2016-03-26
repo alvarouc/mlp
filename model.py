@@ -1,7 +1,7 @@
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout
 from keras.optimizers import Adadelta
-from keras.regularizers import l1
+from keras.regularizers import l1l2
 from keras.callbacks import EarlyStopping
 from sklearn.cross_validation import StratifiedShuffleSplit
 from sklearn.metrics import roc_auc_score, f1_score
@@ -42,7 +42,7 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
          labels provided
     '''
     def __init__(self, n_hidden=1000, n_deep=4,
-                 l1_norm=0.01, drop=0.1,
+                 l1_norm=0.01, l2_norm=0, drop=0.1,
                  early_stop=True, max_epoch=5000,
                  patience=200,
                  learning_rate=1, verbose=2):
@@ -51,6 +51,7 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
         self.n_hidden = n_hidden
         self.n_deep = n_deep
         self.l1_norm = l1_norm
+        self.l2_norm = l2_norm
         self.drop = drop
         self.patience = patience
         self.verbose = verbose
@@ -93,6 +94,7 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
 
         self.model = build_model(in_dim, out_dim=out_dim,
                                  n_hidden=self.n_hidden, l1_norm=self.l1_norm,
+                                 l2_norm=self.l2_norm,
                                  n_deep=self.n_deep, drop=self.drop,
                                  learning_rate=self.learning_rate)
         self.w0 = self.model.get_weights()
@@ -129,7 +131,7 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
         return self.le.inverse_transform(prediction)
 
     def auc(self, X, y):
-        prediction = self.predict(X)
+        prediction = self.predict_proba(X)[:, 1]
         return roc_auc_score(y, prediction)
 
     def f1(self, X, y):
@@ -159,17 +161,14 @@ class MLP(BaseMLP):
             stop = EarlyStopping(monitor='val_loss',
                                  patience=self.patience,
                                  verbose=self.verbose)
-            self.model.fit(x_train, y_train,
-                           nb_epoch=self.max_epoch,
-                           # batch_size=64,
-                           verbose=self.verbose,
-                           callbacks=[stop],
-                           show_accuracy=True,
-                           validation_data=(x_val, y_val))
+            self.hist = self.model.fit(
+                x_train, y_train, nb_epoch=self.max_epoch,
+                verbose=self.verbose, callbacks=[stop], show_accuracy=False,
+                validation_data=(x_val, y_val))
         else:
-            self.model.fit(X, y, nb_epoch=self.max_epoch,
-                           verbose=self.verbose,
-                           show_accuracy=True)
+            self.hist = self.model.fit(
+                X, y, nb_epoch=self.max_epoch, verbose=self.verbose,
+                show_accuracy=False)
 
         return self
 
@@ -213,7 +212,7 @@ class MLPg(MLP):
         for n, (batch, label) in enumerate(batches):
             if scaler:
                 batch = scaler.transform(batch)
-                
+
             old_label = label
             if self.n_class > 2:
                 label = unroll(label)
@@ -246,6 +245,7 @@ class MLPg(MLP):
 
 def build_model(in_dim, out_dim=1,
                 n_hidden=100, l1_norm=0.0,
+                l2_norm=0,
                 n_deep=5, drop=0.1,
                 learning_rate=0.1):
     model = Sequential()
@@ -255,7 +255,7 @@ def build_model(in_dim, out_dim=1,
         output_dim=n_hidden,
         init='glorot_uniform',
         activation='tanh',
-        W_regularizer=l1(l1_norm)))
+        W_regularizer=l1l2(l1=l1_norm, l2=l2_norm)))
 
     # do X layers
     for layer in range(n_deep-1):
@@ -264,7 +264,7 @@ def build_model(in_dim, out_dim=1,
             output_dim=np.round(n_hidden/2**(layer+1)),
             init='glorot_uniform',
             activation='tanh',
-            W_regularizer=l1(l1_norm)))
+            W_regularizer=l1l2(l1=l1_norm, l2=l2_norm)))
 
     # Output layer
     if out_dim == 1:
