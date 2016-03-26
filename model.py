@@ -2,7 +2,7 @@ from keras.models import Sequential
 from keras.layers.core import Dense, Dropout
 from keras.optimizers import Adadelta
 from keras.regularizers import l1l2
-from keras.callbacks import EarlyStopping
+from keras.callbacks import EarlyStopping, Callback
 from sklearn.cross_validation import StratifiedShuffleSplit
 from sklearn.metrics import roc_auc_score, f1_score
 from sklearn.preprocessing import LabelEncoder
@@ -116,7 +116,8 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
 
     def predict_proba(self, X):
         proba = self.model.predict(X, verbose=self.verbose)
-
+        proba = (proba - proba.min())
+        proba = proba/proba.max()
         if proba.shape[1] == 1:
             proba = np.array(proba).reshape((X.shape[0], -1))
             temp = (1-proba.sum(axis=1)).reshape(X.shape[0], -1)
@@ -141,10 +142,32 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
             return f1_score(y, prediction)
 
 
+class TestLossHistory(Callback):
+
+    def __init__(self, X_test, y_test, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.X_test = X_test
+        self.y_test = y_test
+
+    def on_train_begin(self, logs={}):
+        self.test_losses = []
+
+    def on_batch_end(self, batch, logs={}):
+        loss = self.model.evaluate(self.X_test, self.y_test, verbose=0)
+        self.test_losses.append(loss)
+
+
 class MLP(BaseMLP):
 
-    def fit(self, X, y):
+    def fit(self, X, y, X_test=None, y_test=None):
         super().fit(X, y)
+
+        callbacks = []
+        test = X_test is not None and y_test is not None
+        if test:
+            self.test_loss = TestLossHistory(X_test, y_test)
+            callbacks.append(self.test_loss)
+
         if self.n_class > 2:
             y = unroll(self.y_)
         else:
@@ -160,15 +183,22 @@ class MLP(BaseMLP):
             stop = EarlyStopping(monitor='val_loss',
                                  patience=self.patience,
                                  verbose=self.verbose)
+            callbacks.append(stop)
+
             self.history = self.model.fit(
                 x_train, y_train, nb_epoch=self.max_epoch,
-                verbose=self.verbose, callbacks=[stop], show_accuracy=False,
-                validation_data=(x_val, y_val)).history
+                verbose=self.verbose, callbacks=callbacks, show_accuracy=False,
+                validation_data=(x_val, y_val))
+
         else:
             self.history = self.model.fit(
                 X, y, nb_epoch=self.max_epoch, verbose=self.verbose,
-                show_accuracy=False).history
+                show_accuracy=False, callbacks=callbacks)
 
+        if test:
+            pass
+            #plt.plot()
+            
         return self
 
 
