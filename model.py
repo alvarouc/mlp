@@ -152,8 +152,9 @@ class TestLossHistory(Callback):
     def on_train_begin(self, logs={}):
         self.test_losses = []
 
-    def on_batch_end(self, batch, logs={}):
-        loss = self.model.evaluate(self.X_test, self.y_test, verbose=0)
+    def on_epoch_end(self, batch, logs={}):
+        loss = self.model.evaluate(self.X_test, self.y_test, verbose=0,
+                                   batch_size=self.X_test.shape[0])
         self.test_losses.append(loss)
 
 
@@ -195,10 +196,6 @@ class MLP(BaseMLP):
                 X, y, nb_epoch=self.max_epoch, verbose=self.verbose,
                 show_accuracy=False, callbacks=callbacks)
 
-        if test:
-            pass
-            #plt.plot()
-            
         return self
 
 
