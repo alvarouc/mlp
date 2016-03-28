@@ -209,7 +209,7 @@ def build_model(in_dim, out_dim=1,
     model.add(Dense(
         input_dim=in_dim,
         output_dim=n_hidden,
-        init='glorot_uniform',
+        init='glorot_normal',
         activation='tanh',
         W_regularizer=l1l2(l1=l1_norm, l2=l2_norm)))
 
@@ -218,7 +218,7 @@ def build_model(in_dim, out_dim=1,
         model.add(Dropout(drop))
         model.add(Dense(
             output_dim=np.round(n_hidden/2**(layer+1)),
-            init='glorot_uniform',
+            init='glorot_normal',
             activation='tanh',
             W_regularizer=l1l2(l1=l1_norm, l2=l2_norm)))
 
@@ -229,7 +229,7 @@ def build_model(in_dim, out_dim=1,
         activation = 'softmax'
 
     model.add(Dense(out_dim,
-                    init='glorot_uniform',
+                    init='glorot_normal',
                     activation=activation))
 
     # Optimization algorithms

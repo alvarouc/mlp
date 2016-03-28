@@ -1,18 +1,36 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from statsmodels.nonparametric.smoothers_lowess import lowess
+
+
+params = {'alpha': 0.3, 'linestyle': 'solid', 'marker': '.',
+          'zorder': 1}
+params_f = {'alpha': 1, 'linestyle': 'solid', 'marker': ',',
+            'color': 'black', 'zorder': 2}
+
+
+def filter(ts):
+    temp = lowess(ts, range(len(ts)), is_sorted=True, frac=0.05, it=0)
+    return temp[:, 1]
+
+
+def plot_line(ts, label):
+    plt.plot(np.log10(ts), label=label, **params)
+    plt.plot(np.log10(filter(ts)), **params_f)
+    # plt.plot(ts, label=label, **params)
+    # plt.plot(filter(ts), **params_f)
 
 
 def diagnostic_plot(clf, file_name):
-    plt.figure()
-    params = {'alpha': 0.7, 'linestyle': 'solid', 'marker': '.'}
+    plt.figure(figsize=(9, 4))
     loss = clf.history.history['loss']
-    plt.plot(np.log10(loss), label='Train loss', **params)
+    plot_line(loss, 'Train loss')
     if 'val_loss' in clf.history.history.keys():
         val_loss = clf.history.history['val_loss']
-        plt.plot(np.log10(val_loss), label='Validation loss', **params)
+        plot_line(val_loss, 'Validation loss')
     if hasattr(clf, 'test_loss'):
         test_loss = clf.test_loss.test_losses
-        plt.plot(np.log10(test_loss), label='Test loss', **params)
+        plot_line(test_loss, 'Test loss')
     plt.legend()
     plt.ylabel('$\mathrm{Log}_{10}(\mathrm{loss})$')
     plt.xlabel('Epoch')
