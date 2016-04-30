@@ -7,7 +7,7 @@ from sklearn.cross_validation import StratifiedShuffleSplit
 from sklearn.metrics import roc_auc_score, f1_score
 from sklearn.preprocessing import LabelEncoder
 from sklearn.base import BaseEstimator, ClassifierMixin
-from theano import function
+from keras import backend as K
 import numpy as np
 import logging
 
@@ -107,11 +107,12 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
         # each layer
         layer_output = []
         for layer in self.model.layers:
-            if layer.get_config()['name'] == 'Dense':
-                get_layer = function([self.model.layers[0].input],
-                                     layer.get_output(train=False),
-                                     allow_input_downcast=True)
-                layer_output.append(get_layer(X))
+            if 'dense' in layer.get_config()['name']:
+                get_layer = K.function([self.model.layers[0].input],
+                                       layer.output(train=False),
+                                       allow_input_downcast=True)
+                activations = get_activations(X_batch) 
+                layer_output.append(activations)
         return layer_output
 
     def predict_proba(self, X):
@@ -188,13 +189,13 @@ class MLP(BaseMLP):
 
             self.history = self.model.fit(
                 x_train, y_train, nb_epoch=self.max_epoch,
-                verbose=self.verbose, callbacks=callbacks, show_accuracy=False,
+                verbose=self.verbose, callbacks=callbacks,
                 validation_data=(x_val, y_val))
 
         else:
             self.history = self.model.fit(
                 X, y, nb_epoch=self.max_epoch, verbose=self.verbose,
-                show_accuracy=False, callbacks=callbacks)
+                callbacks=callbacks)
 
         return self
 
@@ -209,7 +210,7 @@ def build_model(in_dim, out_dim=1,
     model.add(Dense(
         input_dim=in_dim,
         output_dim=n_hidden,
-        init='glorot_normal',
+        init='uniform',
         activation='tanh',
         W_regularizer=l1l2(l1=l1_norm, l2=l2_norm)))
 
@@ -218,9 +219,8 @@ def build_model(in_dim, out_dim=1,
         model.add(Dropout(drop))
         model.add(Dense(
             output_dim=np.round(n_hidden/2**(layer+1)),
-            init='glorot_normal',
-            activation='tanh',
-            W_regularizer=l1l2(l1=l1_norm, l2=l2_norm)))
+            init='uniform',
+            activation='linear'))
 
     # Output layer
     if out_dim == 1:
@@ -229,19 +229,17 @@ def build_model(in_dim, out_dim=1,
         activation = 'softmax'
 
     model.add(Dense(out_dim,
-                    init='glorot_normal',
+                    init='uniform',
                     activation=activation))
 
     # Optimization algorithms
     opt = Adadelta(lr=learning_rate)
     if out_dim == 1:
         model.compile(loss='binary_crossentropy',
-                      optimizer=opt,
-                      class_mode='binary')
+                      optimizer=opt)
     else:
         model.compile(loss='categorical_crossentropy',
-                      optimizer=opt,
-                      class_mode='categorical')
+                      optimizer=opt)
 
     return model
 
