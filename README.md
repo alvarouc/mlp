@@ -8,6 +8,11 @@ and cross_val_score.
 I  created this  MLP class  to  be compatible  with scikit-learn  that
 contains the fit, predict, and predict_proba methods.
 
+Install
+```bash
+pip install mlp
+```
+
 Quick guide
 
 Initialize your classifier
