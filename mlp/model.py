@@ -1,6 +1,6 @@
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout
-from keras.optimizers import Adadelta
+from keras.optimizers import Adadelta, SGD, RMSprop, Adagrad, Adam, Adamax
 from keras.regularizers import l1l2
 from keras.callbacks import EarlyStopping, Callback
 from sklearn.cross_validation import StratifiedShuffleSplit
@@ -43,8 +43,9 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
     def __init__(self, n_hidden=1000, n_deep=4,
                  l1_norm=0, l2_norm=0, drop=0,
                  early_stop=True, max_epoch=5000,
-                 patience=200,
-                 learning_rate=1, verbose=0):
+                 patience=200, learning_rate=1,
+                 optimizer= 'Adadelta', activation='tanh',
+                 verbose=0):
         self.max_epoch = max_epoch
         self.early_stop = early_stop
         self.n_hidden = n_hidden
@@ -55,6 +56,8 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
         self.patience = patience
         self.verbose = verbose
         self.learning_rate = learning_rate
+        self.optimizer = 'Adadelta'
+        self.activation = activation
 
     def fit(self, X, y, **kwargs):
 
@@ -95,7 +98,9 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
                                  n_hidden=self.n_hidden, l1_norm=self.l1_norm,
                                  l2_norm=self.l2_norm,
                                  n_deep=self.n_deep, drop=self.drop,
-                                 learning_rate=self.learning_rate)
+                                 learning_rate=self.learning_rate,
+                                 optimizer=self.optimizer,
+                                 activation=self.activation)
         self.w0 = self.model.get_weights()
         return self
 
@@ -200,18 +205,17 @@ class MLP(BaseMLP):
         return self
 
 
-def build_model(in_dim, out_dim=1,
-                n_hidden=100, l1_norm=0.0,
-                l2_norm=0,
-                n_deep=5, drop=0.1,
-                learning_rate=0.1):
+def build_model(in_dim, out_dim=1, n_hidden=100, l1_norm=0.0,
+                l2_norm=0, n_deep=5, drop=0.1,
+                learning_rate=0.1, optimizer='Adadelta',
+                activation='tanh'):
     model = Sequential()
     # Input layer
     model.add(Dense(
         input_dim=in_dim,
         output_dim=n_hidden,
         init='uniform',
-        activation='tanh',
+        activation=activation,
         W_regularizer=l1l2(l1=l1_norm, l2=l2_norm)))
 
     # do X layers
@@ -220,11 +224,11 @@ def build_model(in_dim, out_dim=1,
         model.add(Dense(
             output_dim=np.round(n_hidden/2**(layer+1)),
             init='uniform',
-            activation='linear'))
+            activation=activation))
 
     # Output layer
     if out_dim == 1:
-        activation = 'tanh'
+        activation = activation
     else:
         activation = 'softmax'
 
@@ -233,7 +237,22 @@ def build_model(in_dim, out_dim=1,
                     activation=activation))
 
     # Optimization algorithms
-    opt = Adadelta(lr=learning_rate)
+    if optimizer == 'Adadelta':
+        opt = Adadelta(lr=learning_rate)
+    elif optimizer =='SGD':
+        opt = SGD(lr=learning_rate)
+    elif optimizer == 'RMSprop':
+        opt = RMSprop(lr=learning_rate)
+    elif optimizer == 'Adagrad':
+        opt = Adagrad(lr=learning_rate)
+    elif optimizer == 'Adam':
+        opt = Adam(lr=learning_rate)
+    elif optimizer == 'Adamax':
+        opt = Adamax(lr=learning_rate)        
+    else:
+        logger.info('Optimizer {} not defined, using Adadelta'.format(optimizer))
+        opt = Adadelta(lr=learning_rate)
+
     if out_dim == 1:
         model.compile(loss='binary_crossentropy',
                       optimizer=opt)
