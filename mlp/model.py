@@ -192,16 +192,17 @@ class MLP(BaseMLP):
                                  verbose=self.verbose)
             callbacks.append(stop)
 
-            self.history = self.model.fit(
+            history = self.model.fit(
                 x_train, y_train, nb_epoch=self.max_epoch,
                 verbose=self.verbose, callbacks=callbacks,
                 validation_data=(x_val, y_val))
 
         else:
-            self.history = self.model.fit(
+            history = self.model.fit(
                 X, y, nb_epoch=self.max_epoch, verbose=self.verbose,
                 callbacks=callbacks)
 
+        self.history = history.history
         return self
 
 
