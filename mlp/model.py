@@ -113,10 +113,10 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
         layer_output = []
         for layer in self.model.layers:
             if 'dense' in layer.get_config()['name']:
-                get_layer = K.function([self.model.layers[0].input],
-                                       layer.output(train=False),
-                                       allow_input_downcast=True)
-                activations = get_activations(X_batch) 
+                get_layer_output = K.function(
+                    [self.model.layers[0].input, K.learning_phase()],
+                    [layer.output])
+                activations = get_layer_output([X,0])[0]
                 layer_output.append(activations)
         return layer_output
 
