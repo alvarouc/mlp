@@ -21,12 +21,12 @@ def plot_line(ts, label):
     # plt.plot(filter(ts), **params_f)
 
 
-def diagnostic_plot(clf, file_name):
+def diagnostic_plot(clf, file_name=None):
     plt.figure(figsize=(9, 4))
-    loss = clf.history.history['loss']
+    loss = clf.history['loss']
     plot_line(loss, 'Train loss')
-    if 'val_loss' in clf.history.history.keys():
-        val_loss = clf.history.history['val_loss']
+    if 'val_loss' in clf.history.keys():
+        val_loss = clf.history['val_loss']
         plot_line(val_loss, 'Validation loss')
     if hasattr(clf, 'test_loss'):
         test_loss = clf.test_loss.test_losses
@@ -34,4 +34,5 @@ def diagnostic_plot(clf, file_name):
     plt.legend()
     plt.ylabel('$\mathrm{Log}_{10}(\mathrm{loss})$')
     plt.xlabel('Epoch')
-    plt.savefig(file_name+'.pdf')
+    if file_name is not None:
+        plt.savefig(file_name+'.pdf')
