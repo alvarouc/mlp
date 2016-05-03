@@ -56,21 +56,27 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
         self.patience = patience
         self.verbose = verbose
         self.learning_rate = learning_rate
-        self.optimizer = 'Adadelta'
+        self.optimizer = optimizer
         self.activation = activation
 
     def fit(self, X, y, **kwargs):
 
-        # Encoding labels
-        self.le = LabelEncoder()
-        self.y_ = self.le.fit_transform(y)
-        self.n_class = len(self.le.classes_)
+        y = np.squeeze(y)
+        if len(y.shape)==1:
+            # Encoding labels
+            self.le = LabelEncoder()
+            self.y_ = self.le.fit_transform(y)
+            self.n_class = len(self.le.classes_)
 
-        if self.n_class == 2:
-            out_dim = 1
+            if self.n_class == 2:
+                out_dim = 1
+            else:
+                out_dim = self.n_class
         else:
-            out_dim = self.n_class
-
+            self.n_class = y.shape[1]
+            out_dim = y.shape[1]
+            self.y_ = y
+            
         if hasattr(self, 'model'):
             self.reset_model()
         else:
@@ -175,7 +181,7 @@ class MLP(BaseMLP):
             self.test_loss = TestLossHistory(X_test, y_test)
             callbacks.append(self.test_loss)
 
-        if self.n_class > 2:
+        if self.n_class > 2 and y.shape[1]<=1:
             y = unroll(self.y_)
         else:
             y = self.y_
