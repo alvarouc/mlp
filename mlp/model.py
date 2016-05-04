@@ -43,7 +43,7 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
     def __init__(self, n_hidden=1000, n_deep=4,
                  l1_norm=0, l2_norm=0, drop=0,
                  early_stop=True, max_epoch=5000,
-                 patience=200, learning_rate=1,
+                 patience=200, learning_rate=None,
                  optimizer= 'Adadelta', activation='tanh',
                  verbose=0):
         self.max_epoch = max_epoch
@@ -245,17 +245,35 @@ def build_model(in_dim, out_dim=1, n_hidden=100, l1_norm=0.0,
 
     # Optimization algorithms
     if optimizer == 'Adadelta':
-        opt = Adadelta(lr=learning_rate)
+        if learning_rate is None:
+            opt = Adadelta()
+        else:
+            opt = Adadelta(lr=learning_rate)
     elif optimizer =='SGD':
-        opt = SGD(lr=learning_rate)
+        if learning_rate is None:
+            opt = SGD(lr=learning_rate)
+        else:
+            opt = SGD()
     elif optimizer == 'RMSprop':
-        opt = RMSprop(lr=learning_rate)
+        if learning_rate is None:
+            opt = RMSprop(lr=learning_rate)
+        else:
+            opt = RMSprop()
     elif optimizer == 'Adagrad':
-        opt = Adagrad(lr=learning_rate)
+        if learning_phase is None:
+            opt = Adagrad(lr=learning_rate)
+        else:
+            opt = Adagrad()
     elif optimizer == 'Adam':
-        opt = Adam(lr=learning_rate)
+        if learning_rate is None:
+            opt = Adam(lr=learning_rate)
+        else:
+            opt = Adam()
     elif optimizer == 'Adamax':
-        opt = Adamax(lr=learning_rate)        
+        if learning_rate is None:
+            opt = Adamax(lr=learning_rate)
+        else:
+            opt = Adamax()
     else:
         logger.info('Optimizer {} not defined, using Adadelta'.format(optimizer))
         opt = Adadelta(lr=learning_rate)

@@ -2,7 +2,7 @@ from setuptools import setup
 setup(
     name = 'mlp',
     packages = ['mlp'],
-    version = '0.4',
+    version = '0.4.2',
     install_requires=[
         'keras',
         'sklearn',
