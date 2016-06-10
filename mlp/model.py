@@ -157,7 +157,7 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
 class TestLossHistory(Callback):
 
     def __init__(self, X_test, y_test, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super(TestLossHistory, self).__init__(*args, **kwargs)
         self.X_test = X_test
         self.y_test = y_test
 
@@ -173,7 +173,7 @@ class TestLossHistory(Callback):
 class MLP(BaseMLP):
 
     def fit(self, X, y, X_test=None, y_test=None):
-        super().fit(X, y)
+        super(MLP, self).fit(X, y)
 
         callbacks = []
         test = X_test is not None and y_test is not None
