@@ -183,7 +183,7 @@ class MLP(BaseMLP):
             callbacks.append(self.test_loss)
 
         if self.n_class > 2:
-            y = unroll(self.y_[:, 0])
+            y = unroll(self.y_)
         else:
             y = self.y_
 

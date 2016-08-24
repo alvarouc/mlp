@@ -2,7 +2,7 @@ from setuptools import setup
 setup(
     name='mlp',
     packages=['mlp'],
-    version='0.4.3',
+    version='0.4.7',
     install_requires=[
         'keras',
         'sklearn',
@@ -11,7 +11,7 @@ setup(
     author='Alvaro Ulloa',
     author_email='alvarouc@gmail.com',
     url='https://github.com/alvarouc/mlp',
-    download_url='https://github.com/alvarouc/mlp/tarball/0.4',
+    download_url='https://github.com/alvarouc/mlp/tarball/0.4.7',
     keywords=['neural net', 'mlp', 'deep learning'],
     classifiers=[],
 )
