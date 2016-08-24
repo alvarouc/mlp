@@ -40,11 +40,12 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
     auc: returns area under the roc curve on data and true
          labels provided
     '''
+
     def __init__(self, n_hidden=1000, n_deep=4,
                  l1_norm=0, l2_norm=0, drop=0,
                  early_stop=True, max_epoch=5000,
                  patience=200, learning_rate=None,
-                 optimizer= 'Adadelta', activation='tanh',
+                 optimizer='Adadelta', activation='tanh',
                  verbose=0):
         self.max_epoch = max_epoch
         self.early_stop = early_stop
@@ -62,7 +63,7 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
     def fit(self, X, y, **kwargs):
 
         y = np.squeeze(y)
-        if len(y.shape)==1:
+        if len(y.shape) == 1:
             # Encoding labels
             self.le = LabelEncoder()
             self.y_ = self.le.fit_transform(y)
@@ -76,15 +77,15 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
             self.n_class = y.shape[1]
             out_dim = y.shape[1]
             self.y_ = y
-            
+
         if hasattr(self, 'model'):
             self.reset_model()
         else:
             self.build_model(X.shape[1], out_dim)
         if self.verbose:
-            temp = [layer['output_dim'] for layer in
-                    self.model.get_config()['layers']
-                    if layer['name'] == 'Dense']
+            temp = [t['config']['output_dim'] for t in
+                    self.model.get_config()
+                    if t['class_name'] == 'Dense']
             print('Model:{}'.format(temp))
             print('l1: {}, drop: {}, lr: {}, patience: {}'.format(
                 self.l1_norm, self.drop, self.learning_rate,
@@ -122,17 +123,17 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
                 get_layer_output = K.function(
                     [self.model.layers[0].input, K.learning_phase()],
                     [layer.output])
-                activations = get_layer_output([X,0])[0]
+                activations = get_layer_output([X, 0])[0]
                 layer_output.append(activations)
         return layer_output
 
     def predict_proba(self, X):
         proba = self.model.predict(X, verbose=self.verbose)
         proba = (proba - proba.min())
-        proba = proba/proba.max()
+        proba = proba / proba.max()
         if proba.shape[1] == 1:
             proba = np.array(proba).reshape((X.shape[0], -1))
-            temp = (1-proba.sum(axis=1)).reshape(X.shape[0], -1)
+            temp = (1 - proba.sum(axis=1)).reshape(X.shape[0], -1)
             proba = np.hstack((temp, proba))
         return proba
 
@@ -181,8 +182,8 @@ class MLP(BaseMLP):
             self.test_loss = TestLossHistory(X_test, y_test)
             callbacks.append(self.test_loss)
 
-        if self.n_class > 2 and y.shape[1]<=1:
-            y = unroll(self.y_)
+        if self.n_class > 2:
+            y = unroll(self.y_[:, 0])
         else:
             y = self.y_
 
@@ -226,10 +227,10 @@ def build_model(in_dim, out_dim=1, n_hidden=100, l1_norm=0.0,
         W_regularizer=l1l2(l1=l1_norm, l2=l2_norm)))
 
     # do X layers
-    for layer in range(n_deep-1):
+    for layer in range(n_deep - 1):
         model.add(Dropout(drop))
         model.add(Dense(
-            output_dim=np.round(n_hidden/2**(layer+1)),
+            output_dim=n_hidden,  # np.round(n_hidden/2**(layer+1)),
             init='uniform',
             activation=activation))
 
@@ -249,33 +250,34 @@ def build_model(in_dim, out_dim=1, n_hidden=100, l1_norm=0.0,
             opt = Adadelta()
         else:
             opt = Adadelta(lr=learning_rate)
-    elif optimizer =='SGD':
+    elif optimizer == 'SGD':
         if learning_rate is None:
-            opt = SGD(lr=learning_rate)
-        else:
             opt = SGD()
+        else:
+            opt = SGD(lr=learning_rate)
     elif optimizer == 'RMSprop':
         if learning_rate is None:
-            opt = RMSprop(lr=learning_rate)
-        else:
             opt = RMSprop()
-    elif optimizer == 'Adagrad':
-        if learning_phase is None:
-            opt = Adagrad(lr=learning_rate)
         else:
+            opt = RMSprop(lr=learning_rate)
+    elif optimizer == 'Adagrad':
+        if learning_rate is None:
             opt = Adagrad()
+        else:
+            opt = Adagrad(lr=learning_rate)
     elif optimizer == 'Adam':
         if learning_rate is None:
-            opt = Adam(lr=learning_rate)
-        else:
             opt = Adam()
+        else:
+            opt = Adam(lr=learning_rate)
     elif optimizer == 'Adamax':
         if learning_rate is None:
-            opt = Adamax(lr=learning_rate)
-        else:
             opt = Adamax()
+        else:
+            opt = Adamax(lr=learning_rate)
     else:
-        logger.info('Optimizer {} not defined, using Adadelta'.format(optimizer))
+        logger.info(
+            'Optimizer {} not defined, using Adadelta'.format(optimizer))
         opt = Adadelta(lr=learning_rate)
 
     if out_dim == 1:
@@ -290,4 +292,4 @@ def build_model(in_dim, out_dim=1, n_hidden=100, l1_norm=0.0,
 
 def unroll(y):
     n_class = len(np.unique(y))
-    return np.array([np.roll([1] + [0]*(n_class-1), pos) for pos in y])
+    return np.array([np.roll([1] + [0] * (n_class - 1), pos) for pos in y])
