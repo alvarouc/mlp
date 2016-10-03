@@ -3,9 +3,8 @@ from keras.layers.core import Dense, Dropout
 from keras.optimizers import Adadelta, SGD, RMSprop, Adagrad, Adam, Adamax
 from keras.regularizers import l1l2
 from keras.callbacks import EarlyStopping, Callback
-from sklearn.cross_validation import StratifiedShuffleSplit
+from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.metrics import roc_auc_score, f1_score
-from sklearn.preprocessing import LabelEncoder
 from sklearn.base import BaseEstimator, ClassifierMixin
 from keras import backend as K
 import numpy as np
@@ -61,22 +60,20 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
         self.activation = activation
 
     def fit(self, X, y, **kwargs):
-
+        
         y = np.squeeze(y)
-        if len(y.shape) == 1:
-            # Encoding labels
-            self.le = LabelEncoder()
-            self.y_ = self.le.fit_transform(y)
-            self.n_class = len(self.le.classes_)
-
-            if self.n_class == 2:
+        if len(y.shape) == 1: # One class
+            self.n_class = 1
+            self.n_label = len(np.unique(y))
+            if self.n_label == 1: # Error
+                logger.error('Label does not have more than 1 unique element')
+            elif self.n_label == 2: # two labels
                 out_dim = 1
-            else:
-                out_dim = self.n_class
-        else:
+            else: # more than two labels
+                out_dim = self.n_label
+        else: # More than one class
             self.n_class = y.shape[1]
-            out_dim = y.shape[1]
-            self.y_ = y
+            out_dim = self.n_class
 
         if hasattr(self, 'model'):
             self.reset_model()
@@ -141,7 +138,7 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
         prediction = self.model.predict_classes(X, verbose=self.verbose)
         prediction = np.array(prediction).reshape((X.shape[0], -1))
         prediction = np.squeeze(prediction).astype('int')
-        return self.le.inverse_transform(prediction)
+        return prediction
 
     def auc(self, X, y):
         prediction = self.predict_proba(X)[:, 1]
@@ -149,10 +146,14 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
 
     def f1(self, X, y):
         prediction = self.predict(X)
-        if self.n_class > 2:
-            return f1_score(y, prediction, average='weighted')
+        if self.n_class ==1:
+            if self.n_label == 2:
+                return f1_score(y, prediction)
+            else:
+                return f1_score(y, prediction, average='weighted')
         else:
-            return f1_score(y, prediction)
+            logger.error('f1 method not implemented for multiclass')
+            return 0
 
 
 class TestLossHistory(Callback):
@@ -182,15 +183,13 @@ class MLP(BaseMLP):
             self.test_loss = TestLossHistory(X_test, y_test)
             callbacks.append(self.test_loss)
 
-        if self.n_class > 2:
-            y = unroll(self.y_)
-        else:
-            y = self.y_
+        if self.n_class==1 and self.n_label > 2:
+            yr = unroll(y)
 
         if self.early_stop:
-            sss = StratifiedShuffleSplit(self.y_, 1, test_size=0.1,
+            sss = StratifiedShuffleSplit(n_splits=1, test_size=0.1,
                                          random_state=0)
-            train_index, val_index = next(iter(sss))
+            train_index, val_index = next(iter(sss.split(X, y)))
             x_train, x_val = X[train_index], X[val_index]
             y_train, y_val = y[train_index], y[val_index]
 
