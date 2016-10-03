@@ -73,6 +73,7 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
                 out_dim = self.n_label
         else: # More than one class
             self.n_class = y.shape[1]
+            self.n_label = [len(np.unique(y[:,ii])) for ii in range(self.n_class)]
             out_dim = self.n_class
 
         if hasattr(self, 'model'):
