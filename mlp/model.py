@@ -97,7 +97,7 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
     def load(self, path):
         self.model.load_weights(path)
 
-    def build_model(self, in_dim, out_dim):
+    def build_model(self, in_dim, out_dim, n_class=1):
 
         self.model = build_model(in_dim, out_dim=out_dim,
                                  n_hidden=self.n_hidden, l1_norm=self.l1_norm,
@@ -105,7 +105,8 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
                                  n_deep=self.n_deep, drop=self.drop,
                                  learning_rate=self.learning_rate,
                                  optimizer=self.optimizer,
-                                 activation=self.activation)
+                                 activation=self.activation,
+                                 n_class=self.n_class)
         self.w0 = self.model.get_weights()
         return self
 
@@ -136,10 +137,15 @@ class BaseMLP(BaseEstimator, ClassifierMixin):
         return proba
 
     def predict(self, X):
-        prediction = self.model.predict_classes(X, verbose=self.verbose)
-        prediction = np.array(prediction).reshape((X.shape[0], -1))
-        prediction = np.squeeze(prediction).astype('int')
-        return prediction
+        # prediction = self.model.predict_classes(X, verbose=self.verbose)
+        # prediction = np.array(prediction).reshape((X.shape[0], -1))
+        # prediction = np.squeeze(prediction).astype('int')
+        # return prediction
+        prediction = self.model.predict_proba(X, verbose=self.verbose)
+        if self.n_class == 1:
+            return np.round(prediction[:,1])
+        else:
+            return np.round(prediction)
 
     def auc(self, X, y):
         prediction = self.predict_proba(X)[:, 1]
@@ -216,7 +222,7 @@ class MLP(BaseMLP):
 def build_model(in_dim, out_dim=1, n_hidden=100, l1_norm=0.0,
                 l2_norm=0, n_deep=5, drop=0.1,
                 learning_rate=0.1, optimizer='Adadelta',
-                activation='tanh'):
+                activation='tanh', n_class=1):
     model = Sequential()
     # Input layer
     model.add(Dense(
@@ -237,8 +243,10 @@ def build_model(in_dim, out_dim=1, n_hidden=100, l1_norm=0.0,
     # Output layer
     if out_dim == 1:
         activation = activation
-    else:
+    elif n_class==1 and self.n_label>2:
         activation = 'softmax'
+    elif n_class>1:
+        activation = 'sigmoid'
 
     model.add(Dense(out_dim,
                     init='uniform',
