@@ -1,7 +1,7 @@
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout
 from keras.optimizers import Adadelta, SGD, RMSprop, Adagrad, Adam, Adamax
-from keras.regularizers import l1l2
+from keras.regularizers import l1_l2
 from keras.callbacks import EarlyStopping, Callback
 from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.metrics import roc_auc_score, f1_score
@@ -230,7 +230,7 @@ def build_model(in_dim, out_dim=1, n_hidden=100, l1_norm=0.0,
         output_dim=n_hidden,
         init='uniform',
         activation=activation,
-        W_regularizer=l1l2(l1=l1_norm, l2=l2_norm)))
+        W_regularizer=l1_l2(l1=l1_norm, l2=l2_norm)))
 
     # do X layers
     for layer in range(n_deep - 1):
