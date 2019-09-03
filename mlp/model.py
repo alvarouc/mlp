@@ -243,7 +243,7 @@ def build_model(in_dim, out_dim=1, n_hidden=100, l1_norm=0.0,
     # Output layer
     if out_dim == 1:
         activation = activation
-    elif n_class==1 and self.n_label>2:
+    elif n_class==1:
         activation = 'softmax'
     elif n_class>1:
         activation = 'sigmoid'
